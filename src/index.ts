@@ -1,17 +1,31 @@
 import express, { Request, Response } from "express";
-const { exec, spawn } = require('child_process');
+import bodyParser from 'body-parser';
+const { spawn } = require('child_process');
 
 const command = process.platform === 'win32' ? 'powershell.exe' : 'bash';
-const args = process.platform === 'win32' ? ['-Command', 'ls'] : ['-c', 'ls'];
 
 const port = 8080;
 
 const app = express();
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.listen(port, () => {
+    console.log(`now listening on port ${port}`);
+});
 
-app.get("/", (req: Request, res: Response) => {
-
+app.post('/', (req: Request, res: Response) => {
+    const commands = req.body;
+    let args;
+    if (process.platform === 'win32') {
+        args = commands.map((cmd: string) => '.\\' + cmd).join(" ; ")
+        args = "cd C:\\scripts ; " + args;
+        args = ['-Command', args]
+    } else {
+        args = commands.map((cmd: string) => './' + cmd).join(" && ")
+        args = "cd /Users/chinh.le/scripts && " + args;
+        args = ['-c', args]
+    }
     const child = spawn(command, args);
-    console.log("pid ", child.pid, process.platform)
     child.stdout.on('data', (data: any) => {
         console.log(`Command output: ${data}`);
     });
@@ -23,20 +37,5 @@ app.get("/", (req: Request, res: Response) => {
     child.on('close', (code: number) => {
         console.log(`Command process exited with code ${code}`);
     });
-    // const childProcessObj = exec('ls', (err: Error | null, stdout: string, stderr: string) => {
-    //     if (err) {
-    //         console.error(`exec error: ${err}`);
-    //         return;
-    //     }
-    //     console.log(`stdout: ${stdout}`);
-    //     console.error(`stderr: ${stderr}`);
-    //     console.error(`stderr: ${childProcessObj.pid}`);
-    // });
-    // console.error(`stderr11: ${childProcessObj.pid}`);
-
-    res.send("hello");
-});
-
-app.listen(port, () => {
-    console.log(`now listening on port ${port}`);
+    res.json({processId: child.pid});
 });
